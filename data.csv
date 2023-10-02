@@ -1,0 +1,2 @@
+name,is_client,created_time,last_time,last_enter_time,last_leave_time,enter_count,leave_count,stay_time,image,last_image
+64a0e7f7-92b4-4b1c-be3e-6dcf7d45f22c,True,2023-10-02 16:54:17.371683,2023-10-02 16:54:17.371683,2023-10-02 16:54:17.371683,,1,0,0,clients/64a0e7f7-92b4-4b1c-be3e-6dcf7d45f22c.jpg,
