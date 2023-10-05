@@ -1,68 +1,69 @@
-# import concurrent.futures
-import os
-
 import cv2
-import pandas as pd
 from imutils.video import FPS
-
-from functions import first_cam
+from multiprocessing import Process
 from simple_facerec import SimpleFacerec
+from database import Database
+from functions import main_function
+
+db = Database()
 
 
-def main():
-    # Encode faces from a folder
-    sfr = SimpleFacerec()
-    sfr.load_encoding_images("employees/")
-    sfr.load_encoding_images("clients/")
+def process_frame(face_recognizer, frame, camera_number):
+    face_locations, face_names, distances = face_recognizer.detect_known_faces(frame)
 
-    # Load Camera
-    cap = cv2.VideoCapture(0)
-    if not os.path.exists('data.csv'):
-        new_df = pd.DataFrame(
-            columns=['name', 'is_client', 'created_time', 'last_time', 'last_enter_time', 'last_leave_time',
-                     'enter_count', 'leave_count', 'stay_time', 'image', 'last_image'])
-        new_df.to_csv('data.csv', index=False)
+    for count in range(len(face_locations)):
+        main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer,
+                      enter=camera_number)
 
-    df = pd.read_csv('data.csv')
-    df['created_time'] = pd.to_datetime(df['created_time'])
-    df['last_time'] = pd.to_datetime(df['last_time'])
-    df['last_enter_time'] = pd.to_datetime(df['last_enter_time'])
-    df['last_leave_time'] = pd.to_datetime(df['last_leave_time'])
+    cv2.imshow(f"Camera {camera_number}", frame)
+    key = cv2.waitKey(1)
 
-    fps = FPS().start()  # Start the FPS counter before entering the loop
+    if key == 27:
+        return False  # Exit the processing loop
+
+    return True  # Continue processing frames
+
+
+def camera_process(camera_number):
+    face_recognizer = SimpleFacerec()
+    face_recognizer.load_encoding_images("employees/")
+    face_recognizer.load_encoding_images("clients/")
+
+    cap = cv2.VideoCapture(camera_number)
+    fps = FPS().start()
 
     while True:
         ret, frame = cap.read()
+
         if not ret:
-            print("Error: Could not read frame.")
+            print(f"Error: Could not read frame from camera {camera_number}.")
             break
 
-        # Detect Faces
-        face_locations, face_names, distances = sfr.detect_known_faces(frame)
-
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        for number in range(len(face_locations)):
-            df = first_cam(face_locations[number], face_names[number], distances[number], frame, sfr, df)
-            # df = executor.submit(first_cam, face_locations[number], face_names[number], distances[number], frame,
-            #                      sfr, df).result()
-
-        cv2.imshow("Frame", frame)
-
-        key = cv2.waitKey(1)
-        if key == 27:
+        if not process_frame(face_recognizer, frame, camera_number):
             break
 
-        fps.update()  # Update FPS counter after processing each frame
+        fps.update()
 
-    fps.stop()  # Stop the FPS counter when exiting the loop
-
-    df.to_csv('data.csv', index=False)
-
-    cap.release()
     cv2.destroyAllWindows()
-    print(f"Elapsed time: {round(fps.elapsed(), 2)} seconds")
-    print(f"FPS: {round(fps.fps(), 2)}")
+    fps.stop()
+
+    print(f"Elapsed time for Camera {camera_number}: {round(fps.elapsed(), 2)} seconds")
+    print(f"FPS for Camera {camera_number}: {round(fps.fps(), 2)}")
 
 
 if __name__ == "__main__":
-    main()
+    db.create_table_client()
+
+    # Specify the camera numbers you want to use
+    camera_numbers = [0, 1]  # Example: Use cameras 0 and 1
+
+    # Create a separate process for each camera
+    processes = []
+    for camera_number in camera_numbers:
+        process = Process(target=camera_process, args=(camera_number,))
+        processes.append(process)
+        process.start()
+
+    # Wait for all processes to finish
+    for process in processes:
+        process.join()
