@@ -7,6 +7,7 @@ import face_recognition
 import numpy as np
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
+n_jitter = 40
 
 
 class SimpleFacerec:
@@ -19,7 +20,7 @@ class SimpleFacerec:
         try:
             if image is not None:
                 rgb_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=20, model='large')
+                face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
 
                 if len(face_encodings) > 0:
                     img_encoding = face_encodings[0]
@@ -47,7 +48,7 @@ class SimpleFacerec:
             basename = os.path.basename(img_path)
             filename, _ = os.path.splitext(basename)
 
-            face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=20, model='large')
+            face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
 
             if len(face_encodings) > 0:
                 img_encoding = face_encodings[0]
@@ -62,12 +63,13 @@ class SimpleFacerec:
 
         print("Encoding images loaded")
 
-    def detect_known_faces(self, frame, accuracy: float = 0.48):
+    def detect_known_faces(self, frame, accuracy: float = 0.45):
         small_frame = cv2.resize(frame, (0, 0), fx=self.frame_resizing, fy=self.frame_resizing)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
         face_locations = face_recognition.face_locations(rgb_small_frame, model='cnn')
-        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=20, model='large')
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=n_jitter
+                                                         , model='large')
 
         distances = []
         face_names = []

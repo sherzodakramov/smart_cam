@@ -11,7 +11,6 @@ db = Database()
 def main_function(face_loc, name, dis, frame, sfr, enter: int):
     # Unpack face_loc coordinates
     y1, x2, y2, x1 = face_loc
-
     # Draw a rectangle around the detected face
     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 200), 2)
     # age = None
@@ -22,10 +21,16 @@ def main_function(face_loc, name, dis, frame, sfr, enter: int):
             current_time = dt.now()
 
             # Create a new row for the DataFrame
-            new_row = {'name': client_name, 'is_client': True, 'created_time': current_time, 'last_time': current_time,
-                       'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 1,
-                       'leave_count': 0, 'stay_time': 0, 'image': image_path, 'last_image': ''}
-
+            if enter == 1:
+                new_row = {'name': client_name, 'is_client': True, 'created_time': current_time,
+                           'last_time': current_time,
+                           'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 1,
+                           'leave_count': 0, 'stay_time': 0, 'image': image_path, 'last_image': ''}
+            else:
+                new_row = {'name': client_name, 'is_client': True, 'created_time': current_time,
+                           'last_time': current_time,
+                           'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 0,
+                           'leave_count': 1, 'stay_time': 0, 'image': image_path, 'last_image': ''}
             # Save the cropped face as an image
             cropped_face = frame[y1 - 10:y2 + 10, x1 - 10:x2 + 10]
             cv2.imwrite(image_path, cropped_face)
@@ -46,8 +51,12 @@ def main_function(face_loc, name, dis, frame, sfr, enter: int):
                 # Update DataFrame entries for an existing face
                 image_path = f"last_images/{name}.jpg"
                 cv2.imwrite(image_path, frame)
-                row = {'last_time': current_time, 'last_enter_time': current_time, 'enter_count': 1,
-                       'last_image': image_path}
+                if enter == 1:
+                    row = {'last_time': current_time, 'last_enter_time': current_time, 'enter_count': 1,
+                           'last_image': image_path}
+                else:
+                    row = {'last_time': current_time, 'last_leave_time': current_time, 'leave_count': 1,
+                           'last_image': image_path, 'stay_time': int(time_diff_minutes)}
                 db.update_person(name=name, **row)
                 print("Updated!!!")
         else:
@@ -59,9 +68,16 @@ def main_function(face_loc, name, dis, frame, sfr, enter: int):
             current_time = dt.now()
 
             # Create a new row for the DataFrame
-            new_row = {'name': name, 'is_client': is_client, 'created_time': current_time, 'last_time': current_time,
-                       'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 1, 'leave_count': 0,
-                       'stay_time': 0, 'image': image_path, 'last_image': ''}
+            if enter == 1:
+                new_row = {'name': name, 'is_client': is_client, 'created_time': current_time,
+                           'last_time': current_time,
+                           'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 1,
+                           'leave_count': 0, 'stay_time': 0, 'image': image_path, 'last_image': ''}
+            else:
+                new_row = {'name': name, 'is_client': True, 'created_time': current_time,
+                           'last_time': current_time,
+                           'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 0,
+                           'leave_count': 1, 'stay_time': 0, 'image': image_path, 'last_image': ''}
 
             # Append the new row to the DataFrame
             db.add_person(**new_row)
@@ -74,5 +90,5 @@ def main_function(face_loc, name, dis, frame, sfr, enter: int):
     #     cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}-{age}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200),
     #                 2)
     # else:
-    cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200),
+    cv2.putText(frame, f"{name[:6]}-{accuracy:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200),
                 2)
