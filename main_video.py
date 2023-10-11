@@ -1,11 +1,9 @@
 import cv2
 from imutils.video import FPS
-from multiprocessing import Process
+from threading import Thread
 from simple_facerec import SimpleFacerec
 from database import Database
 from functions import main_function
-
-db = Database()
 
 
 def process_frame(face_recognizer, frame, camera_number):
@@ -47,23 +45,23 @@ def camera_process(camera_number):
     cv2.destroyAllWindows()
     fps.stop()
 
-    print(f"Elapsed time for Camera {camera_number}: {round(fps.elapsed(), 2)} seconds")
     print(f"FPS for Camera {camera_number}: {round(fps.fps(), 2)}")
 
 
 if __name__ == "__main__":
+    db = Database()
     db.create_table_client()
 
     # Specify the camera numbers you want to use
-    camera_numbers = [0, 1]  # Example: Use cameras 0 and 1
+    camera_numbers = [1]  # Example: Use cameras 0 and 1
 
-    # Create a separate process for each camera
-    processes = []
+    # Create a separate thread for each camera
+    threads = []
     for camera_number in camera_numbers:
-        process = Process(target=camera_process, args=(camera_number,))
-        processes.append(process)
-        process.start()
+        thread = Thread(target=camera_process, args=(camera_number,))
+        threads.append(thread)
+        thread.start()
 
-    # Wait for all processes to finish
-    for process in processes:
-        process.join()
+    # Wait for all threads to finish
+    for thread in threads:
+        thread.join()

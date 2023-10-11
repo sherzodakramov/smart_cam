@@ -40,6 +40,7 @@ class Database:
         sql = """
         CREATE TABLE IF NOT EXISTS client (
             name VARCHAR(255),
+            array_bytes BYTEA,
             is_client BOOLEAN,
             created_time TIMESTAMP,
             last_time TIMESTAMP,
@@ -61,29 +62,26 @@ class Database:
         ])
         return sql, tuple(parameters.values())
 
-    def add_person(self, name: str, is_client: bool, created_time, last_time, last_enter_time, last_leave_time,
+    def add_person(self, name: str, array_bytes, is_client: bool, created_time, last_time, last_enter_time,
+                   last_leave_time,
                    enter_count: int, leave_count: int, stay_time: int, image: str, last_image: str):
 
         sql = """
-        INSERT INTO client(name, is_client, created_time, last_time, last_enter_time, 
+        INSERT INTO client(name, array_bytes, is_client, created_time, last_time, last_enter_time, 
         last_leave_time, enter_count, leave_count, stay_time, image, last_image) 
-        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        self.execute(sql, parameters=(name, is_client, created_time, last_time, last_enter_time, last_leave_time,
-                                      enter_count, leave_count, stay_time, image, last_image), commit=True)
+        self.execute(sql, parameters=(name, array_bytes, is_client, created_time, last_time,
+                                      last_enter_time, last_leave_time, enter_count, leave_count, stay_time, image,
+                                      last_image), commit=True)
 
-    def select_person(self, name):
-        # SQL_EXAMPLE = "SELECT * FROM Users where id=1 AND Name='John'"
-        sql = "SELECT * FROM client WHERE name = %s"
-        # sql, parameters = self.format_args(sql, kwargs)
-
-        return self.execute(sql, parameters=(name,), fetchone=True)
+    def select_all_array(self):
+        sql = "SELECT name, array_bytes FROM client"
+        return self.execute(sql, fetchall=True)
 
     def select_param(self, param: str, name: str):
-        # SQL_EXAMPLE = "SELECT * FROM Users where id=1 AND Name='John'"
         sql = f"SELECT {param} FROM client WHERE name= %s"
-
-        return self.execute(sql, parameters=(name, ), fetchone=True)
+        return self.execute(sql, parameters=(name,), fetchone=True)
 
     def count_people(self):
         return self.execute("SELECT COUNT(*) FROM client;", fetchone=True)
