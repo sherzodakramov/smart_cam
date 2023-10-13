@@ -23,36 +23,43 @@ class SimpleFacerec:
         self.frame_resizing = 1
 
     def add_known_face(self, image, name):
-        if image is None:
-            logging.error("Image is None.")
-            return [False]
+        try:
+            if image is None:
+                logging.error("Image is None.")
+                return [False]
 
-        rgb_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
+            rgb_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
 
-        if len(face_encodings) > 0:
-            img_encoding = face_encodings[0]
-            self.known_face_encodings.append(img_encoding)
-            self.known_face_names.append(name)
-            return [True, img_encoding]
-        else:
-            logging.warning(f"No face found for {name}.")
+            if len(face_encodings) > 0:
+                img_encoding = face_encodings[0]
+                self.known_face_encodings.append(img_encoding)
+                self.known_face_names.append(name)
+                return [True, img_encoding]
+            else:
+                logging.warning(f"No face found for {name}.")
+                return [False]
+        except Exception as e:
+            logging.exception(f"Error while adding known face for {name}: {str(e)}")
             return [False]
 
     def load_encoding_images(self, images_path):
         images_path = glob.glob(os.path.join(images_path, "*.*"))
         print(f"{len(images_path)} encoding images found.")
-        for img_path in images_path:
+
+        def process_image(img_path):
             folder = os.path.dirname(img_path)
-            img = cv2.imread(img_path)
-            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             basename = os.path.basename(img_path)
             filename, _ = os.path.splitext(basename)
             face_encodings = db.select_param('array_bytes', name=filename)
 
             if not face_encodings:
                 current_time = dt.now()
-                encoded = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')[0]
+                encod = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
+                if len(encod) > 0:
+                    encoded = encod[0]
+                else:
+                    return None
                 self.known_face_encodings.append(encoded)
                 self.known_face_names.append(filename)
                 is_client = folder != 'employees'
@@ -71,6 +78,17 @@ class SimpleFacerec:
                 else:
                     self.known_face_encodings.append(np.frombuffer(face_encodings[0], dtype=np.float64))
                     self.known_face_names.append(filename)
+            return True
+
+        for img_path in images_path:
+            img = cv2.imread(img_path)
+            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            if not process_image(img_path):
+                try:
+                    os.remove(img_path)
+                    logging.warning(f"{img_path} has been successfully removed.")
+                except OSError as e:
+                    print(f"Error: {e}")
 
         print("Encoding images loaded")
 

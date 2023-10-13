@@ -1,9 +1,27 @@
+from multiprocessing import Process
+
 import cv2
 from imutils.video import FPS
 from threading import Thread
 from simple_facerec import SimpleFacerec
 from database import Database
 from functions import main_function
+import time
+
+# Define the time to schedule the database saving (e.g., 3:00 AM)
+SCHEDULED_TIME = "03:00"
+
+db = Database()
+
+
+def schedule_database_saving(db, data_to_save):
+    while True:
+        current_time = time.strftime("%H:%M")
+        if current_time == SCHEDULED_TIME:
+            # Save the data to the database
+            db.save_data_to_database(data_to_save)
+            print("Data saved to the database at scheduled time.")
+        time.sleep(60)  # Check every minute
 
 
 def process_frame(face_recognizer, frame, camera_number):
@@ -49,19 +67,18 @@ def camera_process(camera_number):
 
 
 if __name__ == "__main__":
-    db = Database()
     db.create_table_client()
 
     # Specify the camera numbers you want to use
     camera_numbers = [1]  # Example: Use cameras 0 and 1
 
-    # Create a separate thread for each camera
-    threads = []
+    # Create a separate process for each camera
+    processes = []
     for camera_number in camera_numbers:
-        thread = Thread(target=camera_process, args=(camera_number,))
-        threads.append(thread)
-        thread.start()
+        process = Process(target=camera_process, args=(camera_number,))
+        processes.append(process)
+        process.start()
 
-    # Wait for all threads to finish
-    for thread in threads:
-        thread.join()
+    # Wait for all processes to finish
+    for process in processes:
+        process.join()
