@@ -1,26 +1,75 @@
+import threading
+from datetime import datetime
 from multiprocessing import Process
 
 import cv2
+import numpy as np
+import pandas as pd
 from imutils.video import FPS
-from threading import Thread
 from simple_facerec import SimpleFacerec
 from database import Database
 from functions import main_function
 import time
+import redis
 
 # Define the time to schedule the database saving (e.g., 3:00 AM)
-SCHEDULED_TIME = "03:00"
-
 db = Database()
+red = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+SCHEDULED_TIME = "18:19"
 
 
-def schedule_database_saving(db, data_to_save):
+def schedule_database_saving(db, r):
     while True:
         current_time = time.strftime("%H:%M")
         if current_time == SCHEDULED_TIME:
-            # Save the data to the database
-            db.save_data_to_database(data_to_save)
-            print("Data saved to the database at scheduled time.")
+            data_dict = {}
+            print("Backup to database is began!!!")
+            date_format1 = "%Y-%m-%d %H:%M:%S.%f"
+            date_format2 = "%Y-%m-%dT%H:%M:%S.%f"
+            # Get all keys (hash names) from Redis
+            redis_keys = r.keys('client*')  # Adjust the pattern if necessary
+
+            for key in redis_keys:
+                # Fetch data for each Redis hash
+                redis_data = r.hgetall(key)
+                data_dict[key] = redis_data
+                if redis_data:
+                    # Check if a record with the same name already exists in the database
+                    existing_record = db.select_param('name', redis_data.get('name'))
+                    # Convert and call the add_person method
+                    name = redis_data['name']
+                    array_bytes = np.array(redis_data['array_bytes'].strip('[]').split(), dtype=np.float64)
+                    is_client = bool(redis_data['is_client'])
+                    try:
+                        created_time = datetime.strptime(redis_data['created_time'], date_format1)
+                        last_time = datetime.strptime(redis_data['last_time'], date_format1)
+                        last_enter_time = datetime.strptime(redis_data['last_enter_time'], date_format1)
+                        last_leave_time = datetime.strptime(redis_data['last_leave_time'], date_format1)
+                    except:
+                        created_time = datetime.strptime(redis_data['created_time'], date_format2)
+                        last_time = datetime.strptime(redis_data['last_time'], date_format2)
+                        last_enter_time = datetime.strptime(redis_data['last_enter_time'], date_format2)
+                        last_leave_time = datetime.strptime(redis_data['last_leave_time'], date_format2)
+                    enter_count = int(redis_data['enter_count'])
+                    leave_count = int(redis_data['leave_count'])
+                    stay_time = int(redis_data['stay_time'])
+                    image = redis_data['image']
+                    last_image = redis_data['last_image']
+
+                    if existing_record:
+                        # Update the existing record
+                        continue
+                    else:
+                        db.add_person(name, array_bytes, is_client, created_time, last_time, last_enter_time,
+                                      last_leave_time, enter_count, leave_count, stay_time, image, last_image)
+
+            print("All data saved to the database from Redis.")
+            df = pd.DataFrame.from_dict(data_dict, orient='index')
+
+            # Export to Excel
+            df.to_excel('clients.xlsx', index=False, engine='openpyxl')
+            print("Data converted to excel successfully!!!")
         time.sleep(60)  # Check every minute
 
 
@@ -79,6 +128,12 @@ if __name__ == "__main__":
         processes.append(process)
         process.start()
 
-    # Wait for all processes to finish
+    # Create a separate thread for the schedule_database_saving function
+    save_thread = threading.Thread(target=schedule_database_saving, args=(db, red))
+
+    # Start the thread
+    save_thread.start()
+
+    # Wait for all camera processes to finish
     for process in processes:
         process.join()
