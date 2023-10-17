@@ -1,3 +1,4 @@
+import concurrent.futures
 import glob
 import logging
 import os
@@ -7,6 +8,7 @@ import cv2
 import face_recognition
 import numpy as np
 import psycopg2
+from redis_db import Memory
 
 from database import Database
 
@@ -14,15 +16,14 @@ logging.basicConfig(filename="info.log", level=logging.INFO)
 n_jitter = 100
 
 db = Database()
+red_db = Memory()
 
 
 class SimpleFacerec:
     def __init__(self):
-        self.known_face_encodings = []
-        self.known_face_names = []
         self.frame_resizing = 1
 
-    def add_known_face(self, image, name):
+    def add_unknown_face(self, image, name):
         try:
             if image is None:
                 logging.error("Image is None.")
@@ -33,8 +34,6 @@ class SimpleFacerec:
 
             if len(face_encodings) > 0:
                 img_encoding = face_encodings[0]
-                self.known_face_encodings.append(img_encoding)
-                self.known_face_names.append(name)
                 return [True, img_encoding]
             else:
                 logging.warning(f"No face found for {name}.")
@@ -56,33 +55,40 @@ class SimpleFacerec:
             if not face_encodings:
                 current_time = dt.now()
                 encod = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
-                if len(encod) > 0:
-                    encoded = encod[0]
-                else:
+                if len(encod) == 0:
                     return None
-                self.known_face_encodings.append(encoded)
-                self.known_face_names.append(filename)
                 is_client = folder != 'employees'
-                new_row = {'name': filename, 'array_bytes': psycopg2.Binary(encoded.tobytes()), 'is_client': is_client,
+                new_row = {'name': filename, 'array_bytes': psycopg2.Binary(encod[0].tobytes()), 'is_client': f"{is_client}",
                            'created_time': current_time, 'last_time': current_time, 'last_enter_time': current_time,
                            'last_leave_time': current_time, 'enter_count': 1, 'leave_count': 0, 'stay_time': 0,
                            'image': img_path, 'last_image': ''}
                 db.add_person(**new_row)
+                in_memory = red_db.get_field(name=f"client:{filename}", field='array_bytes')
+                if not in_memory:
+                    time = current_time.strftime('%Y-%m-%dT%H:%M:%S.%f')
+                    new_row['array_bytes'] = f"{encod[0]}"
+                    new_row['created_time'] = time
+                    new_row['last_time'] = time
+                    new_row['last_enter_time'] = time
+                    new_row['last_leave_time'] = time
+                    red_db.add_person(person=f"client:{filename}", **new_row)
             else:
                 if not face_encodings[0]:
                     encoded = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')[0]
-                    self.known_face_encodings.append(encoded)
-                    self.known_face_names.append(filename)
-                    new_row = {'array_bytes': psycopg2.Binary(encoded.tobytes())}
-                    db.update_person(name=filename, **new_row)
+                    db.update_person(name=filename, **{'array_bytes': psycopg2.Binary(encoded.tobytes())})
+                    red_db.update_person(person=f"client:{filename}", **{'array_bytes': encoded})
                 else:
-                    self.known_face_encodings.append(np.frombuffer(face_encodings[0], dtype=np.float64))
-                    self.known_face_names.append(filename)
+                    row = {'name': filename, 'array_bytes': f"{np.frombuffer(face_encodings[0], dtype=np.float64)}"}
+                    red_db.update_person(person=f"client:{filename}",
+                                         **row)
             return True
 
         for img_path in images_path:
             img = cv2.imread(img_path)
-            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            try:
+                rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            except:
+                continue
             if not process_image(img_path):
                 try:
                     os.remove(img_path)
@@ -96,22 +102,32 @@ class SimpleFacerec:
         small_frame = cv2.resize(frame, (0, 0), fx=self.frame_resizing, fy=self.frame_resizing)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
+        # Use the 'cnn' model for more accurate face detection
         face_locations = face_recognition.face_locations(rgb_small_frame, model='cnn')
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=n_jitter,
                                                          model='large')
-        distances = []
-        face_names = []
 
-        for face_encoding in face_encodings:
+        names, encods = red_db.get_all_people('name', 'array_bytes')
+
+        def process_face(face_encoding):
             name = "Unknown"
-            face_distances = face_recognition.face_distance(self.known_face_encodings, face_encoding)
+            face_distances = face_recognition.face_distance(encods, face_encoding)
             best_match_index = np.argmin(face_distances)
 
             if face_distances[best_match_index] <= (1 - accuracy):
-                name = self.known_face_names[best_match_index]
+                name = names[best_match_index]
 
-            face_names.append(name)
-            distances.append(face_distances[best_match_index])
+            return name, face_distances[best_match_index]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            results = list(executor.map(process_face, face_encodings))
+
+        if results:
+            face_names, distances = zip(*results)
+        else:
+            # Handle the case when results are empty
+            face_names = []
+            distances = []
 
         face_locations = (np.array(face_locations) / self.frame_resizing).astype(int)
         return face_locations, face_names, distances
