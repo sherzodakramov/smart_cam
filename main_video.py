@@ -1,22 +1,22 @@
+import logging
 import threading
+import time
 from datetime import datetime
-from multiprocessing import Process
 
 import cv2
 import numpy as np
 import pandas as pd
+import psycopg2
+import redis
 from imutils.video import FPS
-from simple_facerec import SimpleFacerec
+
 from database import Database
 from functions import main_function
-import time
-import redis
+from redis_db import Memory
+from simple_facerec import SimpleFacerec
 
-# Define the time to schedule the database saving (e.g., 3:00 AM)
-db = Database()
-red = redis.Redis(host='localhost', port=6379, decode_responses=True)
-
-SCHEDULED_TIME = "18:19"
+logging.basicConfig(filename="info.log", level=logging.INFO)
+SCHEDULED_TIME = "03:00"
 
 
 def schedule_database_saving(db, r):
@@ -39,47 +39,56 @@ def schedule_database_saving(db, r):
                     existing_record = db.select_param('name', redis_data.get('name'))
                     # Convert and call the add_person method
                     name = redis_data['name']
-                    array_bytes = np.array(redis_data['array_bytes'].strip('[]').split(), dtype=np.float64)
+                    array_bytes = psycopg2.Binary(
+                        (np.array(redis_data['array_bytes'].strip('[]').split(), dtype=np.float64).tobytes()))
                     is_client = bool(redis_data['is_client'])
-                    try:
-                        created_time = datetime.strptime(redis_data['created_time'], date_format1)
-                        last_time = datetime.strptime(redis_data['last_time'], date_format1)
-                        last_enter_time = datetime.strptime(redis_data['last_enter_time'], date_format1)
-                        last_leave_time = datetime.strptime(redis_data['last_leave_time'], date_format1)
-                    except:
-                        created_time = datetime.strptime(redis_data['created_time'], date_format2)
-                        last_time = datetime.strptime(redis_data['last_time'], date_format2)
-                        last_enter_time = datetime.strptime(redis_data['last_enter_time'], date_format2)
-                        last_leave_time = datetime.strptime(redis_data['last_leave_time'], date_format2)
+
+                    def parse_date(date_string, format1, format2):
+                        if date_string:
+                            try:
+                                return datetime.strptime(date_string, format1)
+                            except ValueError:
+                                return datetime.strptime(date_string, format2)
+                        else:
+                            return datetime.now()
+
+                    created_time = parse_date(redis_data['created_time'], date_format1, date_format2)
+                    last_time = parse_date(redis_data['last_time'], date_format1, date_format2)
+                    last_enter_time = parse_date(redis_data['last_enter_time'], date_format1, date_format2)
+                    last_leave_time = parse_date(redis_data['last_leave_time'], date_format1, date_format2)
                     enter_count = int(redis_data['enter_count'])
                     leave_count = int(redis_data['leave_count'])
                     stay_time = int(redis_data['stay_time'])
                     image = redis_data['image']
                     last_image = redis_data['last_image']
-
+                    dict_person = {'created_time': created_time, 'last_time': last_time,
+                                   'last_enter_time': last_enter_time, 'last_leave_time': last_leave_time,
+                                   'enter_count': enter_count, 'leave_count': leave_count, 'stay_time': stay_time,
+                                   'image': image, 'last_image': last_image}
                     if existing_record:
+                        db.update_person(name, **dict_person)
                         # Update the existing record
                         continue
                     else:
                         db.add_person(name, array_bytes, is_client, created_time, last_time, last_enter_time,
                                       last_leave_time, enter_count, leave_count, stay_time, image, last_image)
-
-            print("All data saved to the database from Redis.")
             df = pd.DataFrame.from_dict(data_dict, orient='index')
 
             # Export to Excel
             df.to_excel('clients.xlsx', index=False, engine='openpyxl')
-            print("Data converted to excel successfully!!!")
+            logging.info(f"{datetime.now()}: Data converted to excel successfully!!!")
         time.sleep(60)  # Check every minute
 
 
-def process_frame(face_recognizer, frame, camera_number):
-    face_locations, face_names, distances = face_recognizer.detect_known_faces(frame)
-
+def process_frame(face_recognizer, frame, camera_number, redis_base):
+    face_locations, face_names, distances = face_recognizer.detect_known_faces(frame, redis_base.people_names,
+                                                                               redis_base.people_encodings)
+    start_time = time.time()
     for count in range(len(face_locations)):
-        main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer,
+        main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer, redis_base,
                       enter=camera_number)
-
+    end_time = time.time()
+    elapsed_time = end_time - start_time
     cv2.imshow(f"Camera {camera_number}", frame)
     key = cv2.waitKey(1)
 
@@ -90,9 +99,11 @@ def process_frame(face_recognizer, frame, camera_number):
 
 
 def camera_process(camera_number):
+    redis_base = Memory()
+    redis_base.get_all_people('name', 'array_bytes')
     face_recognizer = SimpleFacerec()
-    face_recognizer.load_encoding_images("employees/")
-    face_recognizer.load_encoding_images("clients/")
+    face_recognizer.load_encoding_images("employees/", redis_base)
+    face_recognizer.load_encoding_images("clients/", redis_base)
 
     cap = cv2.VideoCapture(camera_number)
     fps = FPS().start()
@@ -104,7 +115,7 @@ def camera_process(camera_number):
             print(f"Error: Could not read frame from camera {camera_number}.")
             break
 
-        if not process_frame(face_recognizer, frame, camera_number):
+        if not process_frame(face_recognizer, frame, camera_number, redis_base):
             break
 
         fps.update()
@@ -116,24 +127,26 @@ def camera_process(camera_number):
 
 
 if __name__ == "__main__":
+    db = Database(host="localhost", database="smart_cam", user="postgres", password="abdu3421")
+    red = redis.Redis(host='localhost', port=6379, decode_responses=True)
     db.create_table_client()
 
     # Specify the camera numbers you want to use
     camera_numbers = [1]  # Example: Use cameras 0 and 1
 
-    # Create a separate process for each camera
-    processes = []
+    # Create a thread for each camera
+    threads = []
     for camera_number in camera_numbers:
-        process = Process(target=camera_process, args=(camera_number,))
-        processes.append(process)
-        process.start()
+        thread = threading.Thread(target=camera_process, args=(camera_number,))
+        threads.append(thread)
+        thread.start()
 
     # Create a separate thread for the schedule_database_saving function
     save_thread = threading.Thread(target=schedule_database_saving, args=(db, red))
 
     # Start the thread
     save_thread.start()
-
-    # Wait for all camera processes to finish
-    for process in processes:
-        process.join()
+    threads.append(save_thread)
+    for thread in threads:
+        # Wait for all threads to finish
+        thread.join()

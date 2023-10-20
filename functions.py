@@ -2,17 +2,14 @@ import os.path
 from datetime import datetime as dt
 from uuid import uuid4
 import cv2
-# import psycopg2
 from deepface import DeepFace
 
 from database import Database
-from redis_db import Memory
 
 db = Database()
-red_db = Memory()
 
 
-def main_function(face_loc, name, dis, frame, sfr, enter: int):
+def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
     # Unpack face_loc coordinates
     y1, x2, y2, x1 = face_loc
     # age = None
@@ -36,7 +33,6 @@ def main_function(face_loc, name, dis, frame, sfr, enter: int):
                 'last_image': '',
             }
             cv2.imwrite(image_path, frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-
             # Append the new row to the DataFrame
             red_db.add_person(person=f"client:{client_name}", **new_row)
             print("Successfully saved")
@@ -55,7 +51,13 @@ def main_function(face_loc, name, dis, frame, sfr, enter: int):
                 last_time = dt.strptime(cond, '%Y-%m-%d %H:%M:%S.%f')
             except ValueError:
                 last_time = dt.strptime(cond, '%Y-%m-%dT%H:%M:%S.%f')
-            time_diff_minutes = (current_time - last_time).total_seconds() / 60
+            time1 = current_time.time()
+            time2 = last_time.time()
+
+            # Calculate the time difference in minutes
+            time_diff_minutes = (time1.hour * 60 + time1.minute) - (time2.hour * 60 + time2.minute)
+
+            # Check if the time difference is greater than 2 minutes
             if time_diff_minutes > 2:
                 # Update DataFrame entries for an existing face
                 image_path = f"last_images/{name}.jpg"

@@ -15,9 +15,9 @@ class Database:
                 host=self.host, database=self.database, user=self.user, password=self.password
             )
 
-    def close_connection(self):
-        if self.connection is not None and self.connection.closed == 0:
-            self.connection.close()
+    # def close_connection(self):
+    #     if self.connection is not None and self.connection.closed == 0:
+    #         self.connection.close()
 
     def execute(self, sql: str, parameters: tuple = None, fetchone=False, fetchall=False, commit=False):
         if not parameters:
@@ -33,7 +33,7 @@ class Database:
             data = cursor.fetchall()
         if fetchone:
             data = cursor.fetchone()
-        self.close_connection()
+        # self.close_connection()
         return data
 
     def create_table_client(self):
