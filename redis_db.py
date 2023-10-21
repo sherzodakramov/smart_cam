@@ -32,6 +32,7 @@ class Memory:
         r = self.connection
         self.people_names.append(person.split(":")[1])
         self.people_encodings.append(kwargs.get('array_bytes'))
+        kwargs['array_bytes'] = f"{kwargs['array_bytes']}"
         r.hmset(person, kwargs)
         return True
 

@@ -16,7 +16,7 @@ from redis_db import Memory
 from simple_facerec import SimpleFacerec
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
-SCHEDULED_TIME = "03:00"
+SCHEDULED_TIME = "11:47"
 
 
 def schedule_database_saving(db, r):
@@ -77,18 +77,16 @@ def schedule_database_saving(db, r):
             # Export to Excel
             df.to_excel('clients.xlsx', index=False, engine='openpyxl')
             logging.info(f"{datetime.now()}: Data converted to excel successfully!!!")
+            print("Done")
         time.sleep(60)  # Check every minute
 
 
 def process_frame(face_recognizer, frame, camera_number, redis_base):
     face_locations, face_names, distances = face_recognizer.detect_known_faces(frame, redis_base.people_names,
                                                                                redis_base.people_encodings)
-    start_time = time.time()
     for count in range(len(face_locations)):
         main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer, redis_base,
                       enter=camera_number)
-    end_time = time.time()
-    elapsed_time = end_time - start_time
     cv2.imshow(f"Camera {camera_number}", frame)
     key = cv2.waitKey(1)
 

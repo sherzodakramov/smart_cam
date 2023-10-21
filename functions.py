@@ -22,7 +22,7 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
             current_time = dt.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             # Create a new row for the DataFrame
             new_row = {
-                'name': client_name, 'array_bytes': f"{condition[1]}", 'is_client': 'True',
+                'name': client_name, 'array_bytes': condition[1], 'is_client': 'True',
                 'created_time': current_time, 'last_time': current_time,
                 'last_enter_time': current_time if enter == 1 else '',
                 'last_leave_time': current_time if enter != 1 else '',
@@ -56,9 +56,8 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
 
             # Calculate the time difference in minutes
             time_diff_minutes = (time1.hour * 60 + time1.minute) - (time2.hour * 60 + time2.minute)
-
             # Check if the time difference is greater than 2 minutes
-            if time_diff_minutes > 2:
+            if abs(time_diff_minutes) > 2:
                 # Update DataFrame entries for an existing face
                 image_path = f"last_images/{name}.jpg"
                 cv2.imwrite(image_path, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
@@ -90,7 +89,7 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
 
             # Create a new row for the DataFrame
             new_row = {
-                'name': name, 'array_bytes': f"{condition[1]}", 'is_client': f'{is_client}',
+                'name': name, 'array_bytes': condition[1], 'is_client': f'{is_client}',
                 'created_time': current_time, 'last_time': current_time,
                 'last_enter_time': current_time if enter == 1 else '',
                 'last_leave_time': current_time if enter != 1 else '',

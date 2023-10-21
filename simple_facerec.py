@@ -4,6 +4,7 @@ import os
 from datetime import datetime as dt, datetime
 
 import cv2
+import concurrent.futures
 import face_recognition
 import numpy as np
 import psycopg2
@@ -55,15 +56,15 @@ class SimpleFacerec:
                 if len(encod) == 0:
                     return None
                 is_client = folder != 'employees'
-                new_row = {'name': filename, 'array_bytes': psycopg2.Binary(encod[0].tobytes()), 'is_client': f"{is_client}",
-                           'created_time': current_time, 'last_time': current_time, 'last_enter_time': current_time,
-                           'last_leave_time': current_time, 'enter_count': 1, 'leave_count': 0, 'stay_time': 0,
-                           'image': img_path, 'last_image': ''}
+                new_row = {'name': filename, 'array_bytes': psycopg2.Binary(encod[0].tobytes()),
+                           'is_client': f"{is_client}", 'created_time': current_time, 'last_time': current_time,
+                           'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 1,
+                           'leave_count': 0, 'stay_time': 0, 'image': img_path, 'last_image': ''}
                 db.add_person(**new_row)
                 in_memory = red_db.get_field(name=f"client:{filename}", field='array_bytes')
                 if not in_memory:
                     time = current_time.strftime('%Y-%m-%dT%H:%M:%S.%f')
-                    new_row['array_bytes'] = f"{encod[0]}"
+                    new_row['array_bytes'] = encod[0]
                     new_row['created_time'] = time
                     new_row['last_time'] = time
                     new_row['last_enter_time'] = time
@@ -84,7 +85,7 @@ class SimpleFacerec:
             img = cv2.imread(img_path)
             try:
                 rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            except:
+            except cv2.error:
                 continue
             if not process_image(img_path):
                 try:
@@ -106,12 +107,7 @@ class SimpleFacerec:
 
         def process_face(face_encoding):
             name = "Unknown"
-            try:
-                face_distances = face_recognition.face_distance(encods, face_encoding)
-            except:
-                print(set(type(e) for e in encods))
-                print(f"{face_encoding.shape} -- {face_encoding.ndim} -- {face_encoding.dtype}")
-                print("*"*30)
+            face_distances = face_recognition.face_distance(encods, face_encoding)
             best_match_index = np.argmin(face_distances)
 
             if face_distances[best_match_index] <= (1 - accuracy):
@@ -119,20 +115,23 @@ class SimpleFacerec:
 
             return name, face_distances[best_match_index]
 
-        face_names = []
-        distances = []
-        for face in face_encodings:
-            face_name, face_dis = process_face(face)
-            face_names.append(face_name)
-            distances.append(face_dis)
-
-        # apply with multithreading
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        #     results = list(executor.map(process_face, face_encodings))
-        # if results:
-        #     face_names, distances = zip(*results)
-        # else:
-        #     # Handle the case when results are empty
+        if len(face_encodings) > 1:
+            # apply with multithreading
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                results = list(executor.map(process_face, face_encodings))
+            if results:
+                face_names, distances = zip(*results)
+            else:
+                face_names = []
+                distances = []
+                # Handle the case when results are empty
+        else:
+            face_names = []
+            distances = []
+            for face in face_encodings:
+                face_name, face_dis = process_face(face)
+                face_names.append(face_name)
+                distances.append(face_dis)
 
         face_locations = (np.array(face_locations) / self.frame_resizing).astype(int)
         return face_locations, face_names, distances
