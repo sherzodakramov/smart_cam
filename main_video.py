@@ -12,7 +12,7 @@ from imutils.video import FPS
 
 from database import Database
 from functions import main_function
-from redis_db import Memory
+from knn_algorithm import load_model
 from simple_facerec import SimpleFacerec
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
@@ -81,12 +81,11 @@ def schedule_database_saving(db, r):
         time.sleep(60)  # Check every minute
 
 
-def process_frame(face_recognizer, frame, camera_number, redis_base):
-    face_locations, face_names, distances = face_recognizer.detect_known_faces(frame, redis_base.people_names,
-                                                                               redis_base.people_encodings)
+def process_frame(frame, camera_number, model):
+    face_locations, face_names, distances, encodings = SimpleFacerec().detect_known_faces(frame, model)
     for count in range(len(face_locations)):
-        main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer, redis_base,
-                      enter=camera_number)
+        main_function(face_locations[count], face_names[count], distances[count], encodings[count], frame,
+                      model=model, enter=camera_number)
     cv2.imshow(f"Camera {camera_number}", frame)
     key = cv2.waitKey(1)
 
@@ -97,13 +96,11 @@ def process_frame(face_recognizer, frame, camera_number, redis_base):
 
 
 def camera_process(camera_number):
-    redis_base = Memory()
-    redis_base.get_all_people('name', 'array_bytes')
-    face_recognizer = SimpleFacerec()
-    face_recognizer.load_encoding_images("employees/", redis_base)
-    face_recognizer.load_encoding_images("clients/", redis_base)
-
-    cap = cv2.VideoCapture(camera_number)
+    model = load_model()
+    if camera_number == 0:
+        cap = cv2.VideoCapture("rtsp://admin:softex2020@192.168.1.64:554/Streaming/channels/1/")
+    else:
+        cap = cv2.VideoCapture(camera_number)
     fps = FPS().start()
 
     while True:
@@ -113,7 +110,7 @@ def camera_process(camera_number):
             print(f"Error: Could not read frame from camera {camera_number}.")
             break
 
-        if not process_frame(face_recognizer, frame, camera_number, redis_base):
+        if not process_frame(frame, camera_number, model):
             break
 
         fps.update()
@@ -130,7 +127,7 @@ if __name__ == "__main__":
     db.create_table_client()
 
     # Specify the camera numbers you want to use
-    camera_numbers = [1]  # Example: Use cameras 0 and 1
+    camera_numbers = [0]  # Example: Use cameras 0 and 1
 
     # Create a thread for each camera
     threads = []

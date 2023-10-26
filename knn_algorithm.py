@@ -62,11 +62,28 @@ def train(train_dir, model_save_path='knn_model.clf', n_neighbors=5, knn_algo='b
     return knn_clf
 
 
-def predict(X_img_path, knn_clf=None, model_path='knn_model.clf', distance_threshold=0.52):
+def load_model(model_path='knn_model.clf'):
+    with open(model_path, 'rb') as f:
+        knn_clf = pickle.load(f)
+    return knn_clf
+
+
+def fit_new(X, y, knn_clf=None, model_path='knn_model.clf', save=False):
+
+    if knn_clf is None:
+        with open(model_path, 'rb') as f:
+            knn_clf = pickle.load(f)
+    knn_clf.fit(X, y)
+    if save:
+        with open(model_path, 'wb') as f:
+            pickle.dump(knn_clf, f)
+    return knn_clf
+
+
+def predict(face_encoding, knn_clf=None, model_path='knn_model.clf', distance_threshold=0.52):
     """
     Recognizes faces in given image using a trained KNN classifier
 
-    :param X_img_path: path to image to be recognized
     :param knn_clf: (optional) a knn classifier object. if not specified, model_save_path must be specified.
     :param model_path: (optional) path to a pickled knn classifier. if not specified, model_save_path must be knn_clf.
     :param distance_threshold: (optional) distance threshold for face classification. the larger it is, the more chance
@@ -78,79 +95,15 @@ def predict(X_img_path, knn_clf=None, model_path='knn_model.clf', distance_thres
     #     raise Exception("Invalid image path: {}".format(X_img_path))
 
     if knn_clf is None and model_path is None:
-        raise Exception("Must supply knn classifier either thourgh knn_clf or model_path")
+        raise Exception("Must supply knn classifier either through knn_clf or model_path")
 
     # Load a trained KNN model (if one was passed in)
     if knn_clf is None:
         with open(model_path, 'rb') as f:
             knn_clf = pickle.load(f)
-    X_img_path = cv2.cvtColor(X_img_path, cv2.COLOR_BGR2RGB)
-    X_face_locations = face_recognition.face_locations(X_img_path)
-
-    # If no faces are found in the image, return an empty result.
-    if len(X_face_locations) == 0:
-        return []
-
-    # Find encodings for faces in the test iamge
-    faces_encodings = face_recognition.face_encodings(X_img_path, known_face_locations=X_face_locations)
-
     # Use the KNN model to find the best matches for the test face
-    closest_distances = knn_clf.kneighbors(faces_encodings, n_neighbors=1)
-    are_matches = [closest_distances[0][i][0] <= distance_threshold for i in range(len(X_face_locations))]
-
+    face_encoding = face_encoding.reshape(1, -1)
+    closest_distance = knn_clf.kneighbors(face_encoding, n_neighbors=1)[0][0][0]
     # Predict classes and remove classifications that aren't within the threshold
-    return [(pred, loc) if rec else ("unknown", loc) for pred, loc, rec in
-            zip(knn_clf.predict(faces_encodings), X_face_locations, are_matches)]
-
-
-def show_prediction_labels_on_image(img_path, predictions):
-    """
-    Shows the face recognition results visually.
-
-    :param img_path: path to image to be recognized
-    :param predictions: results of the predict function
-    :return:
-    """
-
-    for pred_name, (y1, x2, y2, x1) in predictions:
-        # when using the default bitmap font
-        pred_name = pred_name.encode("UTF-8")
-
-        # Draw a label with a name below the face
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 200), 2)
-        cv2.putText(frame, f"{pred_name}", (x1, y1 - 13), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)
-
-
-if __name__ == "__main__":
-    # STEP 1: Train the KNN classifier and save it to disk
-    # Once the model is trained and saved, you can skip this step next time.
-    if not os.path.exists("knn_model.clf"):
-        logging.info("Training KNN classifier...")
-        start = time.time()
-        classifier = train("train", model_save_path="knn_model.clf")
-        end = time.time()
-        logging.info("Training complete!")
-        ans = end - start
-        logging.info(f"{round(ans, 2)} seconds")
-
-    cap = cv2.VideoCapture(1)
-
-    while True:
-        ret, frame = cap.read()
-
-        if not ret:
-            print(f"Error: Could not read frame from camera {1}.")
-            break
-        predictions = predict(frame, model_path="knn_model.clf", distance_threshold=0.5)
-        # for name, (top, right, bottom, left) in predictions:
-        #     print("- Found {} at ({}, {})".format(name, left, top))
-
-        # Display results overlaid on an image
-        show_prediction_labels_on_image(frame, predictions)
-        cv2.imshow("Camera", frame)
-        key = cv2.waitKey(1)
-
-        if key == 27:
-            break  # Exit the processing loop
-
-    cv2.destroyAllWindows()
+    return (knn_clf.predict(face_encoding)[0], closest_distance) if closest_distance <= distance_threshold \
+        else ("Unknown", closest_distance)
