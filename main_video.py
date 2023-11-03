@@ -101,8 +101,10 @@ def camera_process(camera_number):
     redis_base.get_all_people('name', 'array_bytes')
     face_recognizer = SimpleFacerec()
     face_recognizer.load_encoding_images("employees/", redis_base)
-    face_recognizer.load_encoding_images("clients/", redis_base)
-
+    # face_recognizer.load_encoding_images("clients/", redis_base)
+    # if camera_number == 0:
+    #     cap = cv2.VideoCapture("rtsp://admin:softex2020@192.168.1.64:554/Streaming/channels/1/")
+    # else:
     cap = cv2.VideoCapture(camera_number)
     fps = FPS().start()
 
@@ -141,6 +143,7 @@ if __name__ == "__main__":
 
     # Create a separate thread for the schedule_database_saving function
     save_thread = threading.Thread(target=schedule_database_saving, args=(db, red))
+    save_thread.daemon = True
 
     # Start the thread
     save_thread.start()

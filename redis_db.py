@@ -1,3 +1,6 @@
+import ast
+import pickle
+
 import redis
 import numpy as np
 
@@ -71,4 +74,5 @@ class Memory:
             if field1_value:
                 self.people_names.append(field1_value)
             if field2_value:
-                self.people_encodings.append(np.array(field2_value.strip('[]').split(), dtype=np.float64))
+                arr = pickle.loads(ast.literal_eval(field2_value))
+                self.people_encodings.append(arr)

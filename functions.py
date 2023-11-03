@@ -2,7 +2,7 @@ import os.path
 from datetime import datetime as dt
 from uuid import uuid4
 import cv2
-from deepface import DeepFace
+# from deepface import DeepFace
 
 from database import Database
 
@@ -11,11 +11,15 @@ db = Database()
 
 def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
     # Unpack face_loc coordinates
-    y1, x2, y2, x1 = face_loc
+
+    # detected_face = img[y: y + h, x: x + w]
+    # img_region = [x, y, w, h]
+    x1, y1, w, h = face_loc
+    x2, y2 = x1 + w, y1 + h
     # age = None
 
-    if name == 'Unknown':
-        client_name = str(uuid4())
+    if name == 'Unknown' and dis < 0.4:
+        client_name = f"new-{str(uuid4())}"
         condition = sfr.add_unknown_face(frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], client_name)
         if condition[0]:
             image_path = f"clients/{client_name}.jpg"
@@ -113,4 +117,4 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
     #                 2)
     # else:
     # Draw a rectangle around the detected face
-    cv2.putText(frame, f"{name}-{accuracy:.2f}", (x1, y1 - 13), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)
+    cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}", (x1, y1 - 13), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)

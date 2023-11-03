@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+import pickle
 from datetime import datetime as dt, datetime
 
 import cv2
@@ -8,11 +9,13 @@ import concurrent.futures
 import face_recognition
 import numpy as np
 import psycopg2
+from deepface.commons import functions as fn
+from deepface import DeepFace as dp
 
 from database import Database
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
-n_jitter = 100
+n_jitter = 10
 
 db = Database()
 
@@ -20,6 +23,7 @@ db = Database()
 class SimpleFacerec:
     def __init__(self):
         self.frame_resizing = 1
+        self.detector_backend = 'mediapipe'
 
     def add_unknown_face(self, image, name):
         try:
@@ -28,7 +32,10 @@ class SimpleFacerec:
                 return [False]
 
             rgb_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
+            # face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
+            face_encodings = [np.array(x['embedding'], dtype=np.float64)
+                              for x in dp.represent(rgb_img, enforce_detection=False,
+                                                    detector_backend=self.detector_backend)]
 
             if len(face_encodings) > 0:
                 img_encoding = face_encodings[0]
@@ -52,7 +59,10 @@ class SimpleFacerec:
 
             if not face_encodings:
                 current_time = dt.now()
-                encod = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
+                # encod = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
+                encod = [np.array(x['embedding'], dtype=np.float64) for x in
+                         dp.represent(rgb_img, enforce_detection=False,
+                                      detector_backend=self.detector_backend)]
                 if len(encod) == 0:
                     return None
                 is_client = folder != 'employees'
@@ -64,7 +74,7 @@ class SimpleFacerec:
                 in_memory = red_db.get_field(name=f"client:{filename}", field='array_bytes')
                 if not in_memory:
                     time = current_time.strftime('%Y-%m-%dT%H:%M:%S.%f')
-                    new_row['array_bytes'] = encod[0]
+                    new_row['array_bytes'] = pickle.dumps(encod[0])
                     new_row['created_time'] = time
                     new_row['last_time'] = time
                     new_row['last_enter_time'] = time
@@ -72,11 +82,14 @@ class SimpleFacerec:
                     red_db.add_person(person=f"client:{filename}", **new_row)
             else:
                 if not face_encodings[0]:
-                    encoded = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')[0]
+                    # encoded = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')[0]
+                    encoded = [np.array(x['embedding'], dtype=np.float64)
+                               for x in dp.represent(rgb_img, enforce_detection=False,
+                                                     detector_backend=self.detector_backend)][0]
                     db.update_person(name=filename, **{'array_bytes': psycopg2.Binary(encoded.tobytes())})
-                    red_db.update_person(person=f"client:{filename}", **{'array_bytes': f"{encoded}"})
+                    red_db.update_person(person=f"client:{filename}", **{'array_bytes': f"{pickle.dumps(encoded)}"})
                 else:
-                    row = {'name': filename, 'array_bytes': f"{np.frombuffer(face_encodings[0], dtype=np.float64)}"}
+                    row = {'name': filename, 'array_bytes': f"{pickle.dumps(np.frombuffer(face_encodings[0], dtype=np.float64))}"}
                     red_db.update_person(person=f"client:{filename}",
                                          **row)
             return True
@@ -101,9 +114,17 @@ class SimpleFacerec:
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
         # Use the 'cnn' model for more accurate face detection
-        face_locations = face_recognition.face_locations(rgb_small_frame, model='cnn')
-        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=n_jitter,
-                                                         model='large')
+
+        # target_size = fn.find_target_size(model_name='VGG-Face')
+        # face_locations = fn.extract_faces(rgb_small_frame, detector_backend='mediapipe', target_size=target_size)
+        # faces = face_recognition.face_locations(rgb_small_frame, model='cnn')
+        # y1, x2, y2, x1 -> face_locations
+        # [y1 - 13: y2 + 13, x1 - 13: x2 + 13]
+        # face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=n_jitter,
+        #                                                  model='large')
+        objs = [x for x in dp.represent(rgb_small_frame, enforce_detection=False, detector_backend=self.detector_backend)]
+        face_encodings = [np.array(x['embedding'], dtype=np.float64) for x in objs]
+        face_locations = [x['facial_area'] for x in objs]
 
         def process_face(face_encoding):
             name = "Unknown"
