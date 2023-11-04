@@ -19,7 +19,7 @@ class Memory:
             self.connection = redis.Redis(
                 host=self.host, port=self.port, decode_responses=self.decode_responses
             )
-
+        return self.connection
     # def close_connection(self):
     #     if self.connection is not None:
     #         self.connection.close()

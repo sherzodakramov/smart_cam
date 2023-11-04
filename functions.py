@@ -7,9 +7,10 @@ import cv2
 from database import Database
 
 db = Database()
+model_name = 'Facenet512'
 
 
-def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
+def main_function(face_loc, name, encods, dis, frame, sfr, red_db, enter: int):
     # Unpack face_loc coordinates
 
     # detected_face = img[y: y + h, x: x + w]
@@ -17,10 +18,9 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
     x1, y1, w, h = face_loc
     x2, y2 = x1 + w, y1 + h
     # age = None
-
     if name == 'Unknown' and dis < 0.4:
         client_name = f"new-{str(uuid4())}"
-        condition = sfr.add_unknown_face(frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], client_name)
+        condition = sfr.add_unknown_face(frame[y1 - 10:y2 + 10, x1 - 10:x2 + 10], client_name, encods)
         if condition[0]:
             image_path = f"clients/{client_name}.jpg"
             current_time = dt.now().strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -36,12 +36,12 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
                 'image': image_path,
                 'last_image': '',
             }
-            cv2.imwrite(image_path, frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            # cv2.imwrite(image_path, frame[y1 - 10:y2 + 10, x1 - 10:x2 + 10], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
             # Append the new row to the DataFrame
-            red_db.add_person(person=f"client:{client_name}", **new_row)
+            # red_db.add_person(person=f"client:{client_name}", **new_row)
             print("Successfully saved")
     else:
-        condition = sfr.add_unknown_face(frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], name)
+        condition = sfr.add_unknown_face(frame[y1 - 10:y2 + 10, x1 - 10:x2 + 10], name, encods)
         if not condition[0]:
             return False
         # Check if the name exists in the DataFrame
@@ -117,4 +117,4 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
     #                 2)
     # else:
     # Draw a rectangle around the detected face
-    cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}", (x1, y1 - 13), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)
+    cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)

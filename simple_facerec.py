@@ -9,13 +9,16 @@ import concurrent.futures
 import face_recognition
 import numpy as np
 import psycopg2
+
+from deepface.DeepFace import build_model
 from deepface.commons import functions as fn
 from deepface import DeepFace as dp
 
 from database import Database
+from deepface.commons.distance import findThreshold
+from deepface.detectors import FaceDetector
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
-n_jitter = 10
 
 db = Database()
 
@@ -24,21 +27,18 @@ class SimpleFacerec:
     def __init__(self):
         self.frame_resizing = 1
         self.detector_backend = 'mediapipe'
+        self.model_name = 'Facenet512'
+        self.model = build_model(self.model_name)
+        self.face_detector = FaceDetector.build_model(self.detector_backend)
+        self.target_size = fn.find_target_size(model_name=self.model_name)
 
-    def add_unknown_face(self, image, name):
+    def add_unknown_face(self, image, name, encods):
         try:
             if image is None:
-                # logging.error("Image is None.")
                 return [False]
 
-            rgb_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            # face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
-            face_encodings = [np.array(x['embedding'], dtype=np.float64)
-                              for x in dp.represent(rgb_img, enforce_detection=False,
-                                                    detector_backend=self.detector_backend)]
-
-            if len(face_encodings) > 0:
-                img_encoding = face_encodings[0]
+            if len(encods) > 0:
+                img_encoding = encods[0]
                 return [True, img_encoding]
             else:
                 # logging.warning(f"No face found for {name}.")
@@ -59,10 +59,10 @@ class SimpleFacerec:
 
             if not face_encodings:
                 current_time = dt.now()
-                # encod = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
                 encod = [np.array(x['embedding'], dtype=np.float64) for x in
-                         dp.represent(rgb_img, enforce_detection=False,
-                                      detector_backend=self.detector_backend)]
+                         dp.represent(img_path=rgb_img, enforce_detection=False,
+                                      detector_backend=self.detector_backend, model=self.model,
+                                      target_size=self.target_size, face_detector=self.face_detector)]
                 if len(encod) == 0:
                     return None
                 is_client = folder != 'employees'
@@ -82,10 +82,10 @@ class SimpleFacerec:
                     red_db.add_person(person=f"client:{filename}", **new_row)
             else:
                 if not face_encodings[0]:
-                    # encoded = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')[0]
                     encoded = [np.array(x['embedding'], dtype=np.float64)
                                for x in dp.represent(rgb_img, enforce_detection=False,
-                                                     detector_backend=self.detector_backend)][0]
+                                                     detector_backend=self.detector_backend, model=self.model,
+                                                     target_size=self.target_size, face_detector=self.face_detector)][0]
                     db.update_person(name=filename, **{'array_bytes': psycopg2.Binary(encoded.tobytes())})
                     red_db.update_person(person=f"client:{filename}", **{'array_bytes': f"{pickle.dumps(encoded)}"})
                 else:
@@ -109,31 +109,21 @@ class SimpleFacerec:
 
         print("Encoding images loaded")
 
-    def detect_known_faces(self, frame, names, encods, accuracy: float = 0.48):
+    def detect_known_faces(self, frame, names, encods):
         small_frame = cv2.resize(frame, (0, 0), fx=self.frame_resizing, fy=self.frame_resizing)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
-
-        # Use the 'cnn' model for more accurate face detection
-
-        # target_size = fn.find_target_size(model_name='VGG-Face')
-        # face_locations = fn.extract_faces(rgb_small_frame, detector_backend='mediapipe', target_size=target_size)
-        # faces = face_recognition.face_locations(rgb_small_frame, model='cnn')
-        # y1, x2, y2, x1 -> face_locations
-        # [y1 - 13: y2 + 13, x1 - 13: x2 + 13]
-        # face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=n_jitter,
-        #                                                  model='large')
-        objs = [x for x in dp.represent(rgb_small_frame, enforce_detection=False, detector_backend=self.detector_backend)]
+        objs = [x for x in dp.represent(rgb_small_frame, enforce_detection=False,
+                                        detector_backend=self.detector_backend, model=self.model,
+                                        target_size=self.target_size, face_detector=self.face_detector)]
         face_encodings = [np.array(x['embedding'], dtype=np.float64) for x in objs]
         face_locations = [x['facial_area'] for x in objs]
 
-        def process_face(face_encoding):
+        def process_face(face_encoding, encods=encods, names=names, model_name=self.model_name):
             name = "Unknown"
             face_distances = face_recognition.face_distance(encods, face_encoding)
             best_match_index = np.argmin(face_distances)
-
-            if face_distances[best_match_index] <= (1 - accuracy):
+            if face_distances[best_match_index] < findThreshold(f'{model_name}', 'euclidean'):
                 name = names[best_match_index]
-
             return name, face_distances[best_match_index]
 
         if len(face_encodings) > 1:
@@ -155,4 +145,4 @@ class SimpleFacerec:
                 distances.append(face_dis)
 
         face_locations = (np.array(face_locations) / self.frame_resizing).astype(int)
-        return face_locations, face_names, distances
+        return face_locations, face_names, distances, face_encodings

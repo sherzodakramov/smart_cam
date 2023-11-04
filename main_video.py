@@ -17,6 +17,7 @@ from simple_facerec import SimpleFacerec
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
 SCHEDULED_TIME = "11:47"
+model_name = 'Facenet512'
 
 
 def schedule_database_saving(db, r):
@@ -82,10 +83,10 @@ def schedule_database_saving(db, r):
 
 
 def process_frame(face_recognizer, frame, camera_number, redis_base):
-    face_locations, face_names, distances = face_recognizer.detect_known_faces(frame, redis_base.people_names,
-                                                                               redis_base.people_encodings)
+    face_locations, face_names, distances, face_encods = face_recognizer.detect_known_faces(frame, names=redis_base.people_names,
+                                                                                            encods=redis_base.people_encodings)
     for count in range(len(face_locations)):
-        main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer, redis_base,
+        main_function(face_locations[count], face_names[count], face_encods[count], distances[count], frame, face_recognizer, redis_base,
                       enter=camera_number)
     cv2.imshow(f"Camera {camera_number}", frame)
     key = cv2.waitKey(1)

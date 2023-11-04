@@ -14,7 +14,7 @@ def loadModel(
 
     home = functions.get_deepface_home()
 
-    if os.path.isfile(home + "/.deepface/weights/facenet512_weights.h5") != True:
+    if not os.path.isfile(home + "/.deepface/weights/facenet512_weights.h5"):
         print("facenet512_weights.h5 will be downloaded...")
 
         output = home + "/.deepface/weights/facenet512_weights.h5"

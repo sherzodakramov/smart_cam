@@ -17,8 +17,6 @@ def detect_face(face_detector, img, align=True):
 
     img_width = img.shape[1]
     img_height = img.shape[0]
-    # img = img.astype('uint8')
-    # print(img.shape)
     results = face_detector.process(img)
 
     if results.detections:

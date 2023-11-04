@@ -97,6 +97,7 @@ def load_image(img):
 
 def extract_faces(
         img,
+        face_detector,
         target_size=(224, 224),
         detector_backend="opencv",
         grayscale=False,
@@ -109,12 +110,7 @@ def extract_faces(
     # img might be path, base64 or numpy array. Convert it to numpy whatever it is.
     img = load_image(img)
     img_region = [0, 0, img.shape[1], img.shape[0]]
-
-    if detector_backend == "skip":
-        face_objs = [(img, img_region, 0)]
-    else:
-        face_detector = FaceDetector.build_model(detector_backend)
-        face_objs = FaceDetector.detect_faces(face_detector, detector_backend, img, align)
+    face_objs = FaceDetector.detect_faces(face_detector, detector_backend, img, align)
 
     # in case of no face found
     if len(face_objs) == 0 and enforce_detection is True:
@@ -159,7 +155,6 @@ def extract_faces(
                         ((diff_0 // 2, diff_0 - diff_0 // 2), (diff_1 // 2, diff_1 - diff_1 // 2)),
                         "constant",
                     )
-
             # double check: if target image is not still the same size with target.
             if current_img.shape[0:2] != target_size:
                 current_img = cv2.resize(current_img, target_size)
@@ -167,13 +162,6 @@ def extract_faces(
             img_pixels = image.img_to_array(current_img)  # what this line doing? must?
             img_pixels = np.expand_dims(img_pixels, axis=0)
             img_pixels /= 255  # normalize input in [0, 1]
-            # int cast is for the exception - object of type 'float32' is not JSON serializable
-            # region_obj = {
-            #     "x": int(current_region[0]),
-            #     "y": int(current_region[1]),
-            #     "w": int(current_region[2]),
-            #     "h": int(current_region[3]),
-            # }
             region_obj = [int(current_region[0]), int(current_region[1]), int(current_region[2]),
                           int(current_region[3])]
             extracted_face = [img_pixels, region_obj, confidence]
@@ -184,7 +172,7 @@ def extract_faces(
             f"Detected face shape is {img.shape}. Consider to set enforce_detection arg to False."
         )
 
-    return face_objs
+    return extracted_faces
 
 
 def normalize_input(img, normalization="base"):
@@ -241,7 +229,7 @@ def find_target_size(model_name):
         "Facenet512": (160, 160),
         "OpenFace": (96, 96),
         "DeepFace": (152, 152),
-        "DeepID": (47, 55),
+        "DeepID": (55, 47),
         "Dlib": (150, 150),
         "ArcFace": (112, 112),
         "SFace": (112, 112),

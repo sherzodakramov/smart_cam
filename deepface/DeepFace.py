@@ -168,7 +168,6 @@ def verify(
         for img2_content, img2_region, _ in img2_objs:
             img1_embedding_obj = represent(
                 img_path=img1_content,
-                model_name=model_name,
                 enforce_detection=enforce_detection,
                 detector_backend="skip",
                 align=align,
@@ -177,7 +176,6 @@ def verify(
 
             img2_embedding_obj = represent(
                 img_path=img2_content,
-                model_name=model_name,
                 enforce_detection=enforce_detection,
                 detector_backend="skip",
                 align=align,
@@ -493,7 +491,6 @@ def find(
             for img_content, _, _ in img_objs:
                 embedding_obj = represent(
                     img_path=img_content,
-                    model_name=model_name,
                     enforce_detection=enforce_detection,
                     detector_backend="skip",
                     align=align,
@@ -537,7 +534,6 @@ def find(
     for target_img, target_region, _ in target_objs:
         target_embedding_obj = represent(
             img_path=target_img,
-            model_name=model_name,
             enforce_detection=enforce_detection,
             detector_backend="skip",
             align=align,
@@ -588,7 +584,9 @@ def find(
 
 def represent(
         img_path,
-        model_name="VGG-Face",
+        model,
+        target_size,
+        face_detector,
         enforce_detection=True,
         detector_backend="opencv",
         align=True,
@@ -624,43 +622,22 @@ def represent(
     """
     resp_objs = []
 
-    model = build_model(model_name)
-
     # ---------------------------------
     # we have run pre-process in verification. so, this can be skipped if it is coming from verify.
-    target_size = functions.find_target_size(model_name=model_name)
-    if detector_backend != "skip":
-        img_objs = functions.extract_faces(
-            img=img_path,
-            target_size=target_size,
-            detector_backend=detector_backend,
-            grayscale=False,
-            enforce_detection=enforce_detection,
-            align=align,
-        )
-    else:  # skip
-        if isinstance(img_path, str):
-            img = functions.load_image(img_path)
-        elif type(img_path).__module__ == np.__name__:
-            img = img_path.copy()
-        else:
-            raise ValueError(f"unexpected type for img_path - {type(img_path)}")
-        # --------------------------------
-        if len(img.shape) == 4:
-            img = img[0]  # e.g. (1, 224, 224, 3) to (224, 224, 3)
-        if len(img.shape) == 3:
-            img = cv2.resize(img, target_size)
-            img = np.expand_dims(img, axis=0)
-        # --------------------------------
-        img_region = [0, 0, img.shape[1], img.shape[0]]
-        img_objs = [(img, img_region, 0)]
+    img_objs = functions.extract_faces(
+        img=img_path,
+        face_detector=face_detector,
+        target_size=target_size,
+        detector_backend=detector_backend,
+        grayscale=False,
+        enforce_detection=enforce_detection,
+        align=align,
+    )
     # ---------------------------------
 
     for img, region, _ in img_objs:
-        print(img.shape)
         # custom normalization
         img = functions.normalize_input(img=img, normalization=normalization)
-
         # represent
         if "keras" in str(type(model)):
             # new tf versions show progress bar and it is annoying
