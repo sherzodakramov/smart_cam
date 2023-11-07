@@ -1,4 +1,4 @@
-import datetime
+from deepface.commons import functions as fn
 import logging
 import time
 
@@ -7,6 +7,8 @@ import face_recognition
 import numpy as np
 
 from deepface import DeepFace as dp
+from deepface.DeepFace import build_model
+from deepface.detectors import FaceDetector
 from redis_db import Memory
 from simple_facerec import SimpleFacerec
 from database import Database
@@ -18,7 +20,7 @@ db = Database()
 red_db = Memory()
 face_recognizer = SimpleFacerec()
 # Capture video from your camera
-camera = cv2.VideoCapture('rtsp://admin:softex2020@192.168.1.64:554/Streaming/channels/1/')
+camera = cv2.VideoCapture(1)
 
 
 # face_distances = []
@@ -33,11 +35,18 @@ def process_face(face_encoding, encods, names, model):
     return name, face_distances[best_match_index]
 
 
-for k in ['VGG-Face', 'Facenet512']:
-    red_db.open_connection().flushall()
-    db.delete_users()
-    print(f"Flushed: {k}")
+detector_backend = 'mediapipe'
+model_name = 'Facenet512'
+model = build_model(model_name)
+face_detector = FaceDetector.build_model(detector_backend)
+target_size = fn.find_target_size(model_name=model_name)
+
+for k in ['Facenet512']:
+    # red_db.open_connection().flushall()
+    # db.delete_users()
+    # print(f"Flushed: {k}")
     face_recognizer.load_encoding_images("employees/", red_db)
+    face_recognizer.load_encoding_images("clients/", red_db)
     red_db.get_all_people('name', 'array_bytes')
     encods = red_db.people_encodings
     names = red_db.people_names
@@ -51,15 +60,9 @@ for k in ['VGG-Face', 'Facenet512']:
         if not ret:
             break
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # img_objs = functions.extract_faces(
-        #     img=image,
-        #     target_size=(224, 224),
-        #     detector_backend=k,
-        #     grayscale=False,
-        #     enforce_detection=False,
-        #     align=True,
-        # )
-        objs = [x for x in dp.represent(image, enforce_detection=False, detector_backend='mediapipe')]
+        objs = [x for x in dp.represent(image, enforce_detection=False,
+                                        detector_backend=detector_backend, model=model,
+                                        target_size=target_size, face_detector=face_detector)]
         face_encodings = [np.array(x['embedding'], dtype=np.float64) for x in objs]
         face_locations = [x['facial_area'] for x in objs]
 

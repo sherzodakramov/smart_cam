@@ -35,7 +35,7 @@ class Memory:
         r = self.connection
         self.people_names.append(person.split(":")[1])
         self.people_encodings.append(kwargs.get('array_bytes'))
-        kwargs['array_bytes'] = f"{kwargs['array_bytes']}"
+        kwargs['array_bytes'] = f"{pickle.dumps(kwargs['array_bytes'])}"
         r.hmset(person, kwargs)
         return True
 
@@ -74,5 +74,6 @@ class Memory:
             if field1_value:
                 self.people_names.append(field1_value)
             if field2_value:
-                arr = pickle.loads(ast.literal_eval(field2_value))
-                self.people_encodings.append(arr)
+                field2_value = field2_value.strip('[]').split()
+                array = np.fromstring(' '.join(field2_value), dtype=np.float64, sep=' ')
+                self.people_encodings.append(array)

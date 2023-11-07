@@ -1,7 +1,6 @@
 import glob
 import logging
 import os
-import pickle
 from datetime import datetime as dt, datetime
 
 import cv2
@@ -74,7 +73,7 @@ class SimpleFacerec:
                 in_memory = red_db.get_field(name=f"client:{filename}", field='array_bytes')
                 if not in_memory:
                     time = current_time.strftime('%Y-%m-%dT%H:%M:%S.%f')
-                    new_row['array_bytes'] = pickle.dumps(encod[0])
+                    new_row['array_bytes'] = encod[0]
                     new_row['created_time'] = time
                     new_row['last_time'] = time
                     new_row['last_enter_time'] = time
@@ -87,9 +86,10 @@ class SimpleFacerec:
                                                      detector_backend=self.detector_backend, model=self.model,
                                                      target_size=self.target_size, face_detector=self.face_detector)][0]
                     db.update_person(name=filename, **{'array_bytes': psycopg2.Binary(encoded.tobytes())})
-                    red_db.update_person(person=f"client:{filename}", **{'array_bytes': f"{pickle.dumps(encoded)}"})
+                    red_db.update_person(person=f"client:{filename}", **{'array_bytes': f"{encoded}"})
                 else:
-                    row = {'name': filename, 'array_bytes': f"{pickle.dumps(np.frombuffer(face_encodings[0], dtype=np.float64))}"}
+                    row = {'name': filename,
+                           'array_bytes': f"{np.frombuffer(face_encodings[0], dtype=np.float64)}"}
                     red_db.update_person(person=f"client:{filename}",
                                          **row)
             return True
@@ -121,6 +121,7 @@ class SimpleFacerec:
         def process_face(face_encoding, encods=encods, names=names, model_name=self.model_name):
             name = "Unknown"
             face_distances = face_recognition.face_distance(encods, face_encoding)
+
             best_match_index = np.argmin(face_distances)
             if face_distances[best_match_index] < findThreshold(f'{model_name}', 'euclidean'):
                 name = names[best_match_index]

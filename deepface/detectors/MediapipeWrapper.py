@@ -8,7 +8,7 @@ def build_model():
     import mediapipe as mp  # this is not a must dependency. do not import it in the global level.
 
     mp_face_detection = mp.solutions.face_detection
-    face_detection = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=1)
+    face_detection = mp_face_detection.FaceDetection(model_selection=0.7, min_detection_confidence=0.8)
     return face_detection
 
 

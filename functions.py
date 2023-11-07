@@ -2,23 +2,73 @@ import os.path
 from datetime import datetime as dt
 from uuid import uuid4
 import cv2
+import numpy as np
+
 # from deepface import DeepFace
+from deepface.extendedmodels import Age, Gender, Race, Emotion
 
 from database import Database
+from deepface.DeepFace import build_model
 
 db = Database()
 model_name = 'Facenet512'
+models = {"emotion": build_model("Emotion")}
+
+# "age": build_model("Age")
+# "emotion": build_model("Emotion"),
+# "gender": build_model("Gender"),
+# "race": build_model("Race")
+
+
+def prepare_emotion(current_img, target_size=(224, 224), grayscale=True):
+    if current_img.shape[0] > 0 and current_img.shape[1] > 0:
+        if grayscale:
+            current_img = cv2.cvtColor(current_img, cv2.COLOR_BGR2GRAY)
+
+        # resize and padding
+        if current_img.shape[0] > 0 and current_img.shape[1] > 0:
+            factor_0 = target_size[0] / current_img.shape[0]
+            factor_1 = target_size[1] / current_img.shape[1]
+            factor = min(factor_0, factor_1)
+
+            dsize = (int(current_img.shape[1] * factor), int(current_img.shape[0] * factor))
+            current_img = cv2.resize(current_img, dsize)
+
+            diff_0 = target_size[0] - current_img.shape[0]
+            diff_1 = target_size[1] - current_img.shape[1]
+            if not grayscale:
+                # Put the base image in the middle of the padded image
+                current_img = np.pad(
+                    current_img,
+                    (
+                        (diff_0 // 2, diff_0 - diff_0 // 2),
+                        (diff_1 // 2, diff_1 - diff_1 // 2),
+                        (0, 0),
+                    ),
+                    "constant",
+                )
+            else:
+                current_img = np.pad(
+                    current_img,
+                    ((diff_0 // 2, diff_0 - diff_0 // 2), (diff_1 // 2, diff_1 - diff_1 // 2)),
+                    "constant",
+                )
+        # double check: if target image is not still the same size with target.
+        if current_img.shape[0:2] != target_size:
+            current_img = cv2.resize(current_img, target_size)
+        # normalizing the image pixels
+        # img_pixels = current_img.img_to_array(current_img)  # what this line doing? must?
+        # img_pixels = np.expand_dims(current_img, axis=0)
+        # img_pixels /= 255  # normalize input in [0, 1]
+        return current_img
 
 
 def main_function(face_loc, name, encods, dis, frame, sfr, red_db, enter: int):
     # Unpack face_loc coordinates
-
-    # detected_face = img[y: y + h, x: x + w]
-    # img_region = [x, y, w, h]
     x1, y1, w, h = face_loc
     x2, y2 = x1 + w, y1 + h
     # age = None
-    if name == 'Unknown' and dis < 0.4:
+    if name == 'Unknown' and int(dis) > 27:
         client_name = f"new-{str(uuid4())}"
         condition = sfr.add_unknown_face(frame[y1 - 10:y2 + 10, x1 - 10:x2 + 10], client_name, encods)
         if condition[0]:
@@ -110,11 +160,41 @@ def main_function(face_loc, name, encods, dis, frame, sfr, red_db, enter: int):
                 print(f"{name[:6]} - Client successfully saved!")
             else:
                 print(f"{name[:6]} Employee saved!")
-    accuracy = 1 - dis
     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 200), 2)
     # if age:
     #     cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}-{age}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200),
     #                 2)
     # else:
     # Draw a rectangle around the detected face
-    cv2.putText(frame, f"{name[:5]}-{accuracy:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)
+    # age, gender, emotion
+    # obj = {}
+    # img_gray = cv2.cvtColor(frame[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
+    # img_gray = cv2.resize(img_gray, (48, 48))
+    # img_gray = np.expand_dims(img_gray, axis=0)
+    # #
+    # # # emotion
+    # emotion_predictions = models["emotion"].predict(img_gray, verbose=0)[0, :]
+    #
+    # sum_of_predictions = emotion_predictions.sum()
+    # obj["emotion"] = {}
+    #
+    # for i, emotion_label in enumerate(Emotion.labels):
+    #     emotion_prediction = 100 * emotion_predictions[i] / sum_of_predictions
+    #     obj["emotion"][emotion_label] = emotion_prediction
+    #
+    # obj["dominant_emotion"] = Emotion.labels[np.argmax(emotion_predictions)]
+    # age
+    # img = prepare_emotion(img_gray)
+    # age_predictions = models["age"].predict(img, verbose=0)[0, :]
+    # apparent_age = Age.findApparentAge(age_predictions)
+    # # int cast is for exception - object of type 'float32' is not JSON serializable
+    # obj["age"] = int(apparent_age)
+    # # gender
+    # gender_predictions = models["gender"].predict(frame[y1:y2, x1:x2], verbose=0)[0, :]
+    # obj["gender"] = {}
+    # for i, gender_label in enumerate(Gender.labels):
+    #     gender_prediction = 100 * gender_predictions[i]
+    #     obj["gender"][gender_label] = gender_prediction
+    #
+    # obj["dominant_gender"] = Gender.labels[np.argmax(gender_predictions)]
+    cv2.putText(frame, f"{name[:6]}-{dis:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 200), 2)

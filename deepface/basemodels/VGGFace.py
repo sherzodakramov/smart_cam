@@ -80,9 +80,6 @@ def baseModel():
     return model
 
 
-# url = 'https://drive.google.com/uc?id=1CPSeum3HpopfomUEK1gybeuIVoeJT_Eo'
-
-
 def loadModel(
     url="https://github.com/serengil/deepface_models/releases/download/v1.0/vgg_face_weights.h5",
 ):
@@ -104,7 +101,6 @@ def loadModel(
 
     # -----------------------------------
 
-    # TO-DO: why?
     vgg_face_descriptor = Model(inputs=model.layers[0].input, outputs=model.layers[-2].output)
 
     return vgg_face_descriptor

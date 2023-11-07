@@ -83,10 +83,12 @@ def schedule_database_saving(db, r):
 
 
 def process_frame(face_recognizer, frame, camera_number, redis_base):
-    face_locations, face_names, distances, face_encods = face_recognizer.detect_known_faces(frame, names=redis_base.people_names,
+    face_locations, face_names, distances, face_encods = face_recognizer.detect_known_faces(frame,
+                                                                                            names=redis_base.people_names,
                                                                                             encods=redis_base.people_encodings)
     for count in range(len(face_locations)):
-        main_function(face_locations[count], face_names[count], face_encods[count], distances[count], frame, face_recognizer, redis_base,
+        main_function(face_locations[count], face_names[count], face_encods[count], distances[count], frame,
+                      face_recognizer, redis_base,
                       enter=camera_number)
     cv2.imshow(f"Camera {camera_number}", frame)
     key = cv2.waitKey(1)
@@ -102,7 +104,7 @@ def camera_process(camera_number):
     redis_base.get_all_people('name', 'array_bytes')
     face_recognizer = SimpleFacerec()
     face_recognizer.load_encoding_images("employees/", redis_base)
-    # face_recognizer.load_encoding_images("clients/", redis_base)
+    face_recognizer.load_encoding_images("clients/", redis_base)
     # if camera_number == 0:
     #     cap = cv2.VideoCapture("rtsp://admin:softex2020@192.168.1.64:554/Streaming/channels/1/")
     # else:
