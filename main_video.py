@@ -82,11 +82,12 @@ def schedule_database_saving(db, r):
 
 
 def process_frame(face_recognizer, frame, camera_number, redis_base):
-    face_locations, face_names, distances = face_recognizer.detect_known_faces(frame, redis_base.people_names,
-                                                                               redis_base.people_encodings)
+    face_locations, face_names, distances, face_encodings = face_recognizer.detect_known_faces(frame,
+                                                                                               redis_base.people_names,
+                                                                                               redis_base.people_encodings)
     for count in range(len(face_locations)):
-        main_function(face_locations[count], face_names[count], distances[count], frame, face_recognizer, redis_base,
-                      enter=camera_number)
+        main_function(face_locations[count], face_names[count], distances[count], face_encodings[count], frame,
+                      redis_base, enter=camera_number)
     cv2.imshow(f"Camera {camera_number}", frame)
     key = cv2.waitKey(1)
 
@@ -143,6 +144,7 @@ if __name__ == "__main__":
     save_thread = threading.Thread(target=schedule_database_saving, args=(db, red))
 
     # Start the thread
+    save_thread.daemon = True
     save_thread.start()
     threads.append(save_thread)
     for thread in threads:

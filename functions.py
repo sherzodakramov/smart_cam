@@ -2,44 +2,38 @@ import os.path
 from datetime import datetime as dt
 from uuid import uuid4
 import cv2
-from deepface import DeepFace
 
 from database import Database
 
 db = Database()
 
 
-def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
+def main_function(face_loc, name, dis, encod, frame, red_db, enter: int):
     # Unpack face_loc coordinates
     y1, x2, y2, x1 = face_loc
     # age = None
 
     if name == 'Unknown':
         client_name = str(uuid4())
-        condition = sfr.add_unknown_face(frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], client_name)
-        if condition[0]:
-            image_path = f"clients/{client_name}.jpg"
-            current_time = dt.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-            # Create a new row for the DataFrame
-            new_row = {
-                'name': client_name, 'array_bytes': condition[1], 'is_client': 'True',
-                'created_time': current_time, 'last_time': current_time,
-                'last_enter_time': current_time if enter == 1 else '',
-                'last_leave_time': current_time if enter != 1 else '',
-                'enter_count': 1 if enter == 1 else 0,
-                'leave_count': 1 if enter != 1 else 0,
-                'stay_time': 0,
-                'image': image_path,
-                'last_image': '',
-            }
-            cv2.imwrite(image_path, frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-            # Append the new row to the DataFrame
-            red_db.add_person(person=f"client:{client_name}", **new_row)
-            print("Successfully saved")
+        image_path = f"clients/{client_name}.jpg"
+        current_time = dt.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        # Create a new row for the DataFrame
+        new_row = {
+            'name': client_name, 'array_bytes': encod, 'is_client': 'True',
+            'created_time': current_time, 'last_time': current_time,
+            'last_enter_time': current_time if enter == 1 else '',
+            'last_leave_time': current_time if enter != 1 else '',
+            'enter_count': 1 if enter == 1 else 0,
+            'leave_count': 1 if enter != 1 else 0,
+            'stay_time': 0,
+            'image': image_path,
+            'last_image': '',
+        }
+        cv2.imwrite(image_path, frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        # Append the new row to the DataFrame
+        red_db.add_person(person=f"client:{client_name}", **new_row)
+        print("Successfully saved")
     else:
-        condition = sfr.add_unknown_face(frame[y1 - 13:y2 + 13, x1 - 13:x2 + 13], name)
-        if not condition[0]:
-            return False
         # Check if the name exists in the DataFrame
         cond = red_db.get_field(name=f"client:{name}", field='last_time')
         # result = DeepFace.analyze(frame, actions=('age',), enforce_detection=False, silent=True)
@@ -57,7 +51,7 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
             # Calculate the time difference in minutes
             time_diff_minutes = (time1.hour * 60 + time1.minute) - (time2.hour * 60 + time2.minute)
             # Check if the time difference is greater than 2 minutes
-            if abs(time_diff_minutes) > 2:
+            if abs(time_diff_minutes) > 5:
                 # Update DataFrame entries for an existing face
                 image_path = f"last_images/{name}.jpg"
                 cv2.imwrite(image_path, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
@@ -89,7 +83,7 @@ def main_function(face_loc, name, dis, frame, sfr, red_db, enter: int):
 
             # Create a new row for the DataFrame
             new_row = {
-                'name': name, 'array_bytes': condition[1], 'is_client': f'{is_client}',
+                'name': name, 'array_bytes': encod, 'is_client': f'{is_client}',
                 'created_time': current_time, 'last_time': current_time,
                 'last_enter_time': current_time if enter == 1 else '',
                 'last_leave_time': current_time if enter != 1 else '',

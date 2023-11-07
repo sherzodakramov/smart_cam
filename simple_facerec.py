@@ -21,25 +21,6 @@ class SimpleFacerec:
     def __init__(self):
         self.frame_resizing = 1
 
-    def add_unknown_face(self, image, name):
-        try:
-            if image is None:
-                # logging.error("Image is None.")
-                return [False]
-
-            rgb_img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            face_encodings = face_recognition.face_encodings(rgb_img, num_jitters=n_jitter, model='large')
-
-            if len(face_encodings) > 0:
-                img_encoding = face_encodings[0]
-                return [True, img_encoding]
-            else:
-                # logging.warning(f"No face found for {name}.")
-                return [False]
-        except Exception as e:
-            logging.exception(f"{datetime.now()}: Error while adding known face for {name}: {str(e)}")
-            return [False]
-
     def load_encoding_images(self, images_path, red_db):
         images_path = glob.glob(os.path.join(images_path, "*.*"))
         print(f"{len(images_path)} encoding images found.")
@@ -134,4 +115,4 @@ class SimpleFacerec:
                 distances.append(face_dis)
 
         face_locations = (np.array(face_locations) / self.frame_resizing).astype(int)
-        return face_locations, face_names, distances
+        return face_locations, face_names, distances, face_encodings

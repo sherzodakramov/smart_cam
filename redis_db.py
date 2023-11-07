@@ -17,10 +17,6 @@ class Memory:
                 host=self.host, port=self.port, decode_responses=self.decode_responses
             )
 
-    # def close_connection(self):
-    #     if self.connection is not None:
-    #         self.connection.close()
-
     def add_people(self, items: dict):
         self.open_connection()
         r = self.connection
