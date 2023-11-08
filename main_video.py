@@ -102,7 +102,7 @@ def camera_process(camera_number):
     redis_base.get_all_people('name', 'array_bytes')
     face_recognizer = SimpleFacerec()
     face_recognizer.load_encoding_images("employees/", redis_base)
-    face_recognizer.load_encoding_images("clients/", redis_base)
+    # face_recognizer.load_encoding_images("clients/", redis_base)
 
     cap = cv2.VideoCapture(camera_number)
     fps = FPS().start()
@@ -144,7 +144,6 @@ if __name__ == "__main__":
     save_thread = threading.Thread(target=schedule_database_saving, args=(db, red))
 
     # Start the thread
-    save_thread.daemon = True
     save_thread.start()
     threads.append(save_thread)
     for thread in threads:

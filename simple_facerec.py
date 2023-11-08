@@ -10,6 +10,7 @@ import numpy as np
 import psycopg2
 
 from database import Database
+from face_check import correct_faces
 
 logging.basicConfig(filename="info.log", level=logging.INFO)
 n_jitter = 100
@@ -77,12 +78,11 @@ class SimpleFacerec:
 
         print("Encoding images loaded")
 
-    def detect_known_faces(self, frame, names, encods, accuracy: float = 0.48):
+    def detect_known_faces(self, frame, names, encods, accuracy: float = 0.45):
         small_frame = cv2.resize(frame, (0, 0), fx=self.frame_resizing, fy=self.frame_resizing)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
-        # Use the 'cnn' model for more accurate face detection
-        face_locations = face_recognition.face_locations(rgb_small_frame, model='cnn')
+        face_locations = correct_faces(frame, face_recognition.face_locations(rgb_small_frame, model='cnn'))
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations, num_jitters=n_jitter,
                                                          model='large')
 
