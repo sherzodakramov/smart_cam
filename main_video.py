@@ -98,12 +98,6 @@ def process_frame(face_recognizer, frame, camera_number, redis_base):
 
 
 def camera_process(camera_number):
-    redis_base = Memory()
-    redis_base.get_all_people('name', 'array_bytes')
-    face_recognizer = SimpleFacerec()
-    face_recognizer.load_encoding_images("employees/", redis_base)
-    # face_recognizer.load_encoding_images("clients/", redis_base)
-
     cap = cv2.VideoCapture(camera_number)
     fps = FPS().start()
 
@@ -129,6 +123,11 @@ if __name__ == "__main__":
     db = Database(host="localhost", database="smart_cam", user="postgres", password="abdu3421")
     red = redis.Redis(host='localhost', port=6379, decode_responses=True)
     db.create_table_client()
+    redis_base = Memory()
+    redis_base.get_all_people('name', 'array_bytes')
+    face_recognizer = SimpleFacerec()
+    face_recognizer.load_encoding_images("employees/", redis_base)
+    # face_recognizer.load_encoding_images("clients/", redis_base)
 
     # Specify the camera numbers you want to use
     camera_numbers = [1]  # Example: Use cameras 0 and 1

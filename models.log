@@ -1,0 +1,8 @@
+INFO:root:Average FPS for VGG-Face: 3.88
+INFO:root:Average FPS for Facenet: 6.85
+INFO:root:Average FPS for Facenet512: 6.67 --> best for speed
+INFO:root:Average FPS for OpenFace: 10.46
+INFO:root:Average FPS for DeepFace: 4.72
+INFO:root:Average FPS for DeepID: 14.11
+INFO:root:Average FPS for ArcFace: 8.95
+INFO:root:Average FPS for Dlib: 3.5 --> best for accuracy

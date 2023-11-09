@@ -1,7 +1,7 @@
 import glob
 import logging
 import os
-from datetime import datetime as dt, datetime
+from datetime import datetime as dt
 
 import cv2
 import concurrent.futures
@@ -72,13 +72,13 @@ class SimpleFacerec:
             if not process_image(img_path):
                 try:
                     os.remove(img_path)
-                    logging.warning(f"{datetime.now()}: {img_path} has been successfully removed.")
+                    logging.warning(f"{dt.now()}: {img_path} has been successfully removed.")
                 except OSError as e:
                     print(f"Error: {e}")
 
         print("Encoding images loaded")
 
-    def detect_known_faces(self, frame, names, encods, accuracy: float = 0.45):
+    def detect_known_faces(self, frame, names, encods, accuracy: float = 0.48):
         small_frame = cv2.resize(frame, (0, 0), fx=self.frame_resizing, fy=self.frame_resizing)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
@@ -98,6 +98,8 @@ class SimpleFacerec:
 
         if len(face_encodings) > 1:
             # apply with multithreading
+            if len(face_encodings) > 10:
+                face_encodings = face_encodings[:10]
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 results = list(executor.map(process_face, face_encodings))
             if results:
