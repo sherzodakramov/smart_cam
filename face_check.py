@@ -9,7 +9,7 @@ def correct_faces(frame, locations):
     for i, landmarks in enumerate(face_landmarks_list):
         y1, x2, y2, x1 = locations[i]
         face = frame[y1:y2, x1:x2]
-        if face.shape[0] < 50 or face.shape[0] < 50:
+        if face.shape[0] < 42 or face.shape[0] < 42:
             print("Face is too small!")
             continue
         # Calculate key facial landmark positions
@@ -22,7 +22,7 @@ def correct_faces(frame, locations):
         nose = landmarks["nose_tip"][2]  # Adjust index as needed
         x3, y3 = nose
         mouth = landmarks["top_lip"][9]  # Adjust index as needed
-        x4, y4 = mouth
+        # x4, y4 = mouth
         lr = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
         r = math.sqrt((x2 - x3) ** 2 + (y2 - y3) ** 2)
         l = math.sqrt((x1 - x3) ** 2 + (y1 - y3) ** 2)

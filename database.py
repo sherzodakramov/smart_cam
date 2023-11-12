@@ -39,7 +39,10 @@ class Database:
     def create_table_client(self):
         sql = """
         CREATE TABLE IF NOT EXISTS client (
+            id SERIAL PRIMARY KEY,
             name VARCHAR(255),
+            phone VARCHAR(255) NULL,
+            status BOOLEAN DEFAULT TRUE,
             array_bytes BYTEA,
             is_client BOOLEAN,
             created_time TIMESTAMP,
@@ -62,16 +65,15 @@ class Database:
         ])
         return sql, tuple(parameters.values())
 
-    def add_person(self, name: str, array_bytes, is_client: bool, created_time, last_time, last_enter_time,
-                   last_leave_time,
-                   enter_count: int, leave_count: int, stay_time: int, image: str, last_image: str):
+    def add_person(self, name: str, status: bool, array_bytes, is_client: bool, created_time, last_time, last_enter_time,
+                   last_leave_time, enter_count: int, leave_count: int, stay_time: int, image: str, last_image: str):
 
         sql = """
-        INSERT INTO client(name, array_bytes, is_client, created_time, last_time, last_enter_time, 
+        INSERT INTO client(name, status, array_bytes, is_client, created_time, last_time, last_enter_time, 
         last_leave_time, enter_count, leave_count, stay_time, image, last_image) 
-        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        self.execute(sql, parameters=(name, array_bytes, is_client, created_time, last_time,
+        self.execute(sql, parameters=(name, status, array_bytes, is_client, created_time, last_time,
                                       last_enter_time, last_leave_time, enter_count, leave_count, stay_time, image,
                                       last_image), commit=True)
 

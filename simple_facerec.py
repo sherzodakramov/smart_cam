@@ -38,7 +38,7 @@ class SimpleFacerec:
                 if len(encod) == 0:
                     return None
                 is_client = folder != 'employees'
-                new_row = {'name': filename, 'array_bytes': psycopg2.Binary(encod[0].tobytes()),
+                new_row = {'name': filename, 'status': True, 'array_bytes': psycopg2.Binary(encod[0].tobytes()),
                            'is_client': f"{is_client}", 'created_time': current_time, 'last_time': current_time,
                            'last_enter_time': current_time, 'last_leave_time': current_time, 'enter_count': 1,
                            'leave_count': 0, 'stay_time': 0, 'image': img_path, 'last_image': ''}
@@ -51,6 +51,7 @@ class SimpleFacerec:
                     new_row['last_time'] = time
                     new_row['last_enter_time'] = time
                     new_row['last_leave_time'] = time
+                    new_row.pop('status')
                     red_db.add_person(person=f"client:{filename}", **new_row)
             else:
                 if not face_encodings[0]:
@@ -78,7 +79,7 @@ class SimpleFacerec:
 
         print("Encoding images loaded")
 
-    def detect_known_faces(self, frame, names, encods, accuracy: float = 0.48):
+    def detect_known_faces(self, frame, names, encods, distance: float = 0.5):
         small_frame = cv2.resize(frame, (0, 0), fx=self.frame_resizing, fy=self.frame_resizing)
         rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
@@ -91,13 +92,14 @@ class SimpleFacerec:
             face_distances = face_recognition.face_distance(encods, face_encoding)
             best_match_index = np.argmin(face_distances)
 
-            if face_distances[best_match_index] <= (1 - accuracy):
+            if face_distances[best_match_index] <= distance:
                 name = names[best_match_index]
 
             return name, face_distances[best_match_index]
 
         if len(face_encodings) > 1:
             # apply with multithreading
+            # if more than 10 people take only 10 people face
             if len(face_encodings) > 10:
                 face_encodings = face_encodings[:10]
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
