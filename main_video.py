@@ -25,9 +25,21 @@ class Face_App:
         self.redis_base = Memory()
         self.face_recognizer = SimpleFacerec()
         self.red = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        self.stop_flag = False
+        self.camera_threads = []
+
+    def stop(self):
+        self.stop_flag = True
+        for thread in self.camera_threads:
+            thread.join()
+        print("Successfully stopped!!!")
+
+    def restart(self):
+        self.stop()
+        self.run_function()
 
     def schedule_database_saving(self):
-        while True:
+        while not self.stop_flag:
             current_time = time.strftime("%H:%M")
             if current_time == self.scheduled_time:
                 data_dict = {}
@@ -101,6 +113,7 @@ class Face_App:
         key = cv2.waitKey(1)
 
         if key == 27:
+            self.stop()
             return False  # Exit the processing loop
 
         return True  # Continue processing frames
@@ -111,7 +124,7 @@ class Face_App:
         cap = cv2.VideoCapture(1)
         fps = FPS().start()
 
-        while True:
+        while not self.stop_flag:
             ret, frame = cap.read()
 
             if not ret:
@@ -139,10 +152,9 @@ class Face_App:
         # self.face_recognizer.load_encoding_images("clients/", redis_base)
 
         # Create a thread for each camera
-        threads = []
         for camera_param in self.cameras:
             thread = threading.Thread(target=self.camera_process, args=(camera_param,))
-            threads.append(thread)
+            self.camera_threads.append(thread)
             thread.start()
 
         # Create a separate thread for the schedule_database_saving function
@@ -150,12 +162,8 @@ class Face_App:
 
         # Start the thread
         save_thread.start()
-        threads.append(save_thread)
-        for thread in threads:
-            # Wait for all threads to finish
-            thread.join()
+        self.camera_threads.append(save_thread)
 
-
-camera_list = [{'ip_address': '192.168.1.64', 'login': 'admin', 'password': 'softex2020', 'is_enter': True, 'real': 1},
-               {'ip_address': '192.168.1.64', 'login': 'admin', 'password': 'softex2020', 'is_enter': True, 'real': 0}]
-Face_App(cameras=camera_list).run_function()
+camera_list = [{'ip_address': '192.168.1.64', 'login': 'admin', 'password': 'softex2020', 'is_enter': True, 'real': 1}]
+my_app = Face_App(cameras=camera_list)
+my_app.run_function()
