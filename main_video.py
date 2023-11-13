@@ -30,8 +30,6 @@ class Face_App:
 
     def stop(self):
         self.stop_flag = True
-        for thread in self.camera_threads:
-            thread.join()
         print("Successfully stopped!!!")
 
     def restart(self):
@@ -163,6 +161,10 @@ class Face_App:
         # Start the thread
         save_thread.start()
         self.camera_threads.append(save_thread)
+
+        for thread in self.camera_threads:
+            thread.join()
+
 
 camera_list = [{'ip_address': '192.168.1.64', 'login': 'admin', 'password': 'softex2020', 'is_enter': True, 'real': 1}]
 my_app = Face_App(cameras=camera_list)
